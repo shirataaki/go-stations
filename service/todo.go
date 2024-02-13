@@ -32,23 +32,30 @@ func (s *TODOService) CreateTODO(ctx context.Context, subject, description strin
 		confirm = `SELECT id, subject, description, created_at, updated_at FROM todos WHERE id = ?`
 	)
 
-	// TODOをDBに保存
-	res, err := s.db.ExecContext(ctx, insert, subject, description)
+	// Prepare the INSERT statement
+	stmt, err := s.db.PrepareContext(ctx, insert)
 	if err != nil {
-		return nil, fmt.Errorf("failed to insert todo: %w", err)
+		return nil, err
+	}
+	defer stmt.Close()
+
+	// Execute the INSERT statement
+	res, err := stmt.ExecContext(ctx, subject, description)
+	if err != nil {
+		return nil, err
 	}
 
-	// 保存したTODOのIDを取得
+	// Get the last inserted ID
 	id, err := res.LastInsertId()
 	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve todo id: %w", err)
+		return nil, err
 	}
 
-	// 保存したTODOを読み取り
+	// Retrieve the saved TODO
 	var todo model.TODO
 	err = s.db.QueryRowContext(ctx, confirm, id).Scan(&todo.ID, &todo.Subject, &todo.Description, &todo.CreatedAt, &todo.UpdatedAt)
 	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve todo: %w", err)
+		return nil, err
 	}
 
 	return &todo, nil
