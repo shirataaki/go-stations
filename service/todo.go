@@ -83,7 +83,7 @@ func (s *TODOService) UpdateTODO(ctx context.Context, id int64, subject, descrip
 	}
 
 	if affected == 0 {
-		return nil, &model.ErrNotFound{} // ポインタを返すように変更
+		return nil, &model.ErrNotFound{}
 	}
 
 	// Retrieve the updated TODO
@@ -91,7 +91,7 @@ func (s *TODOService) UpdateTODO(ctx context.Context, id int64, subject, descrip
 	err = s.db.QueryRowContext(ctx, confirm, id).Scan(&todo.ID, &todo.Subject, &todo.Description, &todo.CreatedAt, &todo.UpdatedAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, &model.ErrNotFound{} // ポインタを返すように変更
+			return nil, &model.ErrNotFound{}
 		}
 		return nil, fmt.Errorf("failed to retrieve updated todo: %w", err)
 	}
