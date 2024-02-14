@@ -27,10 +27,15 @@ type (
 	// A ReadTODOResponse expresses ...
 	ReadTODOResponse struct{}
 
-	// A UpdateTODORequest expresses ...
-	UpdateTODORequest struct{}
-	// A UpdateTODOResponse expresses ...
-	UpdateTODOResponse struct{}
+	UpdateTODORequest struct {
+		ID          int64  `json:"id" binding:"required"`      // 必須
+		Subject     string `json:"subject" binding:"required"` // 必須
+		Description string `json:"description"`                // 必須ではない
+	}
+
+	UpdateTODOResponse struct {
+		TODO TODO `json:"todo"` // 変更されたTODO
+	}
 
 	// A DeleteTODORequest expresses ...
 	DeleteTODORequest struct{}

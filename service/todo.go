@@ -59,14 +59,44 @@ func (s *TODOService) ReadTODO(ctx context.Context, prevID, size int64) ([]*mode
 	return nil, nil
 }
 
+//var ErrNotFound = errors.New("not found")
+
 // UpdateTODO updates the TODO on DB.
 func (s *TODOService) UpdateTODO(ctx context.Context, id int64, subject, description string) (*model.TODO, error) {
+	if id <= 0 {
+		return nil, &model.ErrNotFound{}
+	}
 	const (
 		update  = `UPDATE todos SET subject = ?, description = ? WHERE id = ?`
 		confirm = `SELECT subject, description, created_at, updated_at FROM todos WHERE id = ?`
 	)
 
-	return nil, nil
+	// Execute the update query
+	res, err := s.db.ExecContext(ctx, update, subject, description, id)
+	if err != nil {
+		return nil, err
+	}
+
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return nil, fmt.Errorf("failed to check affected rows: %w", err)
+	}
+
+	if affected == 0 {
+		return nil, &model.ErrNotFound{} // ポインタを返すように変更
+	}
+
+	// Retrieve the updated TODO
+	var todo model.TODO
+	err = s.db.QueryRowContext(ctx, confirm, id).Scan(&todo.ID, &todo.Subject, &todo.Description, &todo.CreatedAt, &todo.UpdatedAt)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, &model.ErrNotFound{} // ポインタを返すように変更
+		}
+		return nil, fmt.Errorf("failed to retrieve updated todo: %w", err)
+	}
+
+	return &todo, nil
 }
 
 // DeleteTODO deletes TODOs on DB by ids.
