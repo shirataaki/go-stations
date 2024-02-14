@@ -37,4 +37,6 @@ CreateTODOResponse struct {
 		TODO TODO `json:"todo"`
 	}
 ```
-# Station08
+
+# Station10
+- この実装により、ErrNotFound エラーが発生した際には、どのようなリソースが、どのIDに対して見つからなかったのかを具体的に示すエラーメッセージを返すことが可能になる。
