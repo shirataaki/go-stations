@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/TechBowl-japan/go-stations/model"
@@ -10,41 +11,71 @@ import (
 )
 
 func (h *TODOHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// 1. HTTP メソッドが Post の場合を判定
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
-		return
-	}
+	switch r.Method {
+	case http.MethodPost:
+		// CreateTODORequest に JSON Decode
+		var req model.CreateTODORequest
+		err := json.NewDecoder(r.Body).Decode(&req)
+		if err != nil {
+			http.Error(w, "Bad Request", http.StatusBadRequest)
+			return
+		}
 
-	// 2. CreateTODORequest に JSON Decode
-	var req model.CreateTODORequest
-	err := json.NewDecoder(r.Body).Decode(&req)
-	if err != nil {
-		http.Error(w, "Bad Request", http.StatusBadRequest)
-		return
-	}
+		// subject が空文字列の場合を判定
+		if req.Subject == "" {
+			http.Error(w, "Bad Request: subject is required", http.StatusBadRequest)
+			return
+		}
 
-	// 3. subject が空文字列の場合を判定
-	if req.Subject == "" {
-		http.Error(w, "Bad Request: subject is required", http.StatusBadRequest)
-		return
-	}
+		// CreateTODO メソッドを呼び出し
+		todo, err := h.svc.CreateTODO(r.Context(), req.Subject, req.Description)
+		if err != nil {
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
 
-	// 4. CreateTODO メソッドに呼び出し
-	todo, err := h.svc.CreateTODO(r.Context(), req.Subject, req.Description)
-	if err != nil {
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
+		// CreateTODOResponse に代入し、JSON Encode を行い HTTP Response を返す
+		if todo != nil {
+			resp := model.CreateTODOResponse{TODO: *todo} // ポインタから値を取り出す
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(resp)
+		} else {
+			// todoがnilの場合の適切なエラーハンドリング
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		}
+	case http.MethodPut:
+		// UpdateTODORequest に JSON Decode
+		var req model.UpdateTODORequest
+		err := json.NewDecoder(r.Body).Decode(&req)
+		if err != nil {
+			http.Error(w, "Bad Request", http.StatusBadRequest)
+			return
+		}
 
-	// 5. CreateTODOResponse に代入し、JSON Encode を行い HTTP Response を返す
-	if todo != nil {
-		resp := model.CreateTODOResponse{TODO: *todo} // ポインタから値を取り出す
+		// id が 0 の場合や subject が空文字列の場合を判定
+		if req.ID == 0 || req.Subject == "" {
+			http.Error(w, "Bad Request: ID and subject are required", http.StatusBadRequest)
+			return
+		}
+
+		todo, err := h.svc.UpdateTODO(r.Context(), req.ID, req.Subject, req.Description)
+		if err != nil {
+			var notFound *model.ErrNotFound
+			if errors.As(err, &notFound) {
+				http.Error(w, "Not Found", http.StatusNotFound)
+			} else {
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			}
+			return
+		}
+
+		// 更新成功時のレスポンスを返す
+		resp := model.UpdateTODOResponse{TODO: *todo}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(resp)
-	} else {
-		// todoがnilの場合の適切なエラーハンドリング
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	default:
+		// PUTとPOST以外のメソッドに対してはMethod Not Allowedを返す
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 	}
 }
 

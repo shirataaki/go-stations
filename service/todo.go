@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 
 	"github.com/TechBowl-japan/go-stations/model"
@@ -60,22 +59,15 @@ func (s *TODOService) ReadTODO(ctx context.Context, prevID, size int64) ([]*mode
 	return nil, nil
 }
 
-//var ErrNotFound = errors.New("not found")
-
 // UpdateTODO updates the TODO on DB.
 func (s *TODOService) UpdateTODO(ctx context.Context, id int64, subject, description string) (*model.TODO, error) {
-	if id <= 0 {
+	/*if id <= 0 {
 		return nil, &model.ErrNotFound{}
-	}
-
-	if subject == "" {
-		// Return a generic error for simplicity, in real scenario, this should be validated before reaching the DB layer.
-		return nil, errors.New("subject is required") // Adjust error handling as per your application logic
-	}
+	}*/
 
 	const (
 		update  = `UPDATE todos SET subject = ?, description = ? WHERE id = ?`
-		confirm = `SELECT subject, description, created_at, updated_at FROM todos WHERE id = ?`
+		confirm = `SELECT id, subject, description, created_at, updated_at FROM todos WHERE id = ?` // 12. idを含めるように変更した
 	)
 
 	// Execute the update query
@@ -90,15 +82,15 @@ func (s *TODOService) UpdateTODO(ctx context.Context, id int64, subject, descrip
 	}
 
 	if affected == 0 {
-		return nil, &model.ErrNotFound{}
+		return nil, &model.ErrNotFound{} // 更新された行がない場合は、ErrNotFoundエラーを返す
 	}
 
-	// Retrieve the updated TODO
 	var todo model.TODO
 	err = s.db.QueryRowContext(ctx, confirm, id).Scan(&todo.ID, &todo.Subject, &todo.Description, &todo.CreatedAt, &todo.UpdatedAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, &model.ErrNotFound{}
+			// IDに対応するTODOが見つからない場合は、ErrNotFoundエラーを具体的な情報と共に返す
+			return nil, &model.ErrNotFound{Resource: "TODO", ID: id}
 		}
 		return nil, fmt.Errorf("failed to retrieve updated todo: %w", err)
 	}

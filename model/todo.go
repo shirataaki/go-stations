@@ -23,7 +23,10 @@ type (
 	}
 
 	// A ReadTODORequest expresses ...
-	ReadTODORequest struct{}
+	ReadTODORequest struct {
+		PrevID int64 `json:"prev_id"` // 前回取得した最後のTODOのID
+		Size   int64 `json:"size"`
+	}
 	// A ReadTODOResponse expresses ...
 	ReadTODOResponse struct{}
 
