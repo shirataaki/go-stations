@@ -25,10 +25,12 @@ type (
 	// A ReadTODORequest expresses ...
 	ReadTODORequest struct {
 		PrevID int64 `json:"prev_id"` // 前回取得した最後のTODOのID
-		Size   int64 `json:"size"`
+		Size   int64 `json:"size"`    // 取得するTODOの最大数
 	}
 	// A ReadTODOResponse expresses ...
-	ReadTODOResponse struct{}
+	ReadTODOResponse struct {
+		TODOs []TODO `json:"todos"` // 取得したTODOのリスト
+	}
 
 	UpdateTODORequest struct {
 		ID          int64  `json:"id" binding:"required"`      // 必須
