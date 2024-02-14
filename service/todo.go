@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/TechBowl-japan/go-stations/model"
@@ -66,6 +67,12 @@ func (s *TODOService) UpdateTODO(ctx context.Context, id int64, subject, descrip
 	if id <= 0 {
 		return nil, &model.ErrNotFound{}
 	}
+
+	if subject == "" {
+		// Return a generic error for simplicity, in real scenario, this should be validated before reaching the DB layer.
+		return nil, errors.New("subject is required") // Adjust error handling as per your application logic
+	}
+
 	const (
 		update  = `UPDATE todos SET subject = ?, description = ? WHERE id = ?`
 		confirm = `SELECT subject, description, created_at, updated_at FROM todos WHERE id = ?`
