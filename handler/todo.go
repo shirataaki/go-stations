@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/TechBowl-japan/go-stations/model"
 	"github.com/TechBowl-japan/go-stations/service"
@@ -43,6 +44,35 @@ func (h *TODOHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			// todoがnilの場合の適切なエラーハンドリング
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		}
+
+	case http.MethodGet:
+		// URL の Query Parameter から prev_id と size を取得
+		query := r.URL.Query()
+		prevID, _ := strconv.ParseInt(query.Get("prev_id"), 10, 64)
+		size, _ := strconv.ParseInt(query.Get("size"), 10, 64)
+
+		// ReadTODO メソッドを呼び出し
+		todos, err := h.svc.ReadTODO(r.Context(), prevID, size)
+		if err != nil {
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+
+		// []*model.TODO から []model.TODO へ変換
+		var todosValueSlice []model.TODO
+		for _, todoPtr := range todos {
+			if todoPtr != nil {
+				todosValueSlice = append(todosValueSlice, *todoPtr)
+			}
+		}
+
+		// ReadTODOResponse に代入し、JSON Encode を行い HTTP Response を返す
+		resp := model.ReadTODOResponse{TODOs: todosValueSlice}
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
+			// JSON のエンコードに失敗した場合のエラーハンドリング
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		}
 	case http.MethodPut:
 		// UpdateTODORequest に JSON Decode
 		var req model.UpdateTODORequest
@@ -68,7 +98,6 @@ func (h *TODOHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			return
 		}
-
 		// 更新成功時のレスポンスを返す
 		resp := model.UpdateTODOResponse{TODO: *todo}
 		w.Header().Set("Content-Type", "application/json")

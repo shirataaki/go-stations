@@ -51,12 +51,45 @@ func (s *TODOService) CreateTODO(ctx context.Context, subject, description strin
 
 // ReadTODO reads TODOs on DB.
 func (s *TODOService) ReadTODO(ctx context.Context, prevID, size int64) ([]*model.TODO, error) {
+	// サイズが0の場合は空のスライスを返す
+	if size <= 0 {
+		return []*model.TODO{}, nil
+	}
+
 	const (
 		read       = `SELECT id, subject, description, created_at, updated_at FROM todos ORDER BY id DESC LIMIT ?`
 		readWithID = `SELECT id, subject, description, created_at, updated_at FROM todos WHERE id < ? ORDER BY id DESC LIMIT ?`
 	)
 
-	return nil, nil
+	var rows *sql.Rows
+	var err error
+
+	if prevID > 0 {
+		rows, err = s.db.QueryContext(ctx, readWithID, prevID, size)
+	} else {
+		rows, err = s.db.QueryContext(ctx, read, size)
+	}
+
+	if err != nil {
+		return nil, err // エラー処理
+	}
+	defer rows.Close() // 必ずクローズ
+
+	var todos []*model.TODO
+
+	for rows.Next() {
+		var todo model.TODO
+		if err := rows.Scan(&todo.ID, &todo.Subject, &todo.Description, &todo.CreatedAt, &todo.UpdatedAt); err != nil {
+			return nil, err // エラー処理
+		}
+		todos = append(todos, &todo)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err // 繰り返し処理中のエラー処理
+	}
+
+	return todos, nil
 }
 
 // UpdateTODO updates the TODO on DB.
@@ -67,7 +100,7 @@ func (s *TODOService) UpdateTODO(ctx context.Context, id int64, subject, descrip
 
 	const (
 		update  = `UPDATE todos SET subject = ?, description = ? WHERE id = ?`
-		confirm = `SELECT id, subject, description, created_at, updated_at FROM todos WHERE id = ?` // 12. idを含めるように変更した
+		confirm = `SELECT id, subject, description, created_at, updated_at FROM todos WHERE id = ?` // idを含めるように変更した
 	)
 
 	// Execute the update query
