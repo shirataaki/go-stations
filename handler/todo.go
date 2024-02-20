@@ -44,35 +44,6 @@ func (h *TODOHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			// todoがnilの場合の適切なエラーハンドリング
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		}
-
-	case http.MethodGet:
-		// URL の Query Parameter から prev_id と size を取得
-		query := r.URL.Query()
-		prevID, _ := strconv.ParseInt(query.Get("prev_id"), 10, 64)
-		size, _ := strconv.ParseInt(query.Get("size"), 10, 64)
-
-		// ReadTODO メソッドを呼び出し
-		todos, err := h.svc.ReadTODO(r.Context(), prevID, size)
-		if err != nil {
-			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-			return
-		}
-
-		// []*model.TODO から []model.TODO へ変換
-		var todosValueSlice []model.TODO
-		for _, todoPtr := range todos {
-			if todoPtr != nil {
-				todosValueSlice = append(todosValueSlice, *todoPtr)
-			}
-		}
-
-		// ReadTODOResponse に代入し、JSON Encode を行い HTTP Response を返す
-		resp := model.ReadTODOResponse{TODOs: todosValueSlice}
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(resp); err != nil {
-			// JSON のエンコードに失敗した場合のエラーハンドリング
-			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		}
 	case http.MethodPut:
 		// UpdateTODORequest に JSON Decode
 		var req model.UpdateTODORequest
@@ -101,6 +72,80 @@ func (h *TODOHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// 更新成功時のレスポンスを返す
 		resp := model.UpdateTODOResponse{TODO: *todo}
 		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	case http.MethodGet:
+		// クエリパラメータからprev_idとsizeを取得し、整数に変換
+		prevIDStr := r.URL.Query().Get("prev_id")
+		sizeStr := r.URL.Query().Get("size")
+		var prevID int64 = 0 // デフォルト値として0を設定
+		var size int64 = 10  // デフォルト値として10を設定（例）
+
+		if prevIDStr != "" {
+			var err error
+			prevID, err = strconv.ParseInt(prevIDStr, 10, 64)
+			if err != nil {
+				http.Error(w, "Invalid prev_id parameter", http.StatusBadRequest)
+				return
+			}
+		}
+
+		if sizeStr != "" {
+			var err error
+			size, err = strconv.ParseInt(sizeStr, 10, 64)
+			if err != nil {
+				http.Error(w, "Invalid size parameter", http.StatusBadRequest)
+				return
+			}
+		}
+
+		// ReadTODOメソッドを呼び出してTODOリストを取得
+		todos, err := h.svc.ReadTODO(r.Context(), prevID, size)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// レスポンスにContent-Typeを設定
+		w.Header().Set("Content-Type", "application/json")
+		// 取得したTODOリストをエンコードしてレスポンスとして返す
+		if err := json.NewEncoder(w).Encode(map[string]interface{}{"todos": todos}); err != nil {
+			http.Error(w, "Error encoding response", http.StatusInternalServerError)
+			return
+		}
+
+	case http.MethodDelete:
+		// DeleteTODORequestにJSON Decode
+		var req model.DeleteTODORequest
+		err := json.NewDecoder(r.Body).Decode(&req)
+		if err != nil {
+			http.Error(w, "Bad Request", http.StatusBadRequest)
+			return
+		}
+
+		// idのリストが空の場合を判定
+		if len(req.IDs) == 0 {
+			http.Error(w, "Bad Request: ids are required", http.StatusBadRequest)
+			return
+		}
+
+		// DeleteTODOメソッドを呼び出し
+		err = h.svc.DeleteTODO(r.Context(), req.IDs)
+		if err != nil {
+			// ErrNotFoundが返却された場合は404 NotFoundとしてHTTP Responseを返す
+			var notFound *model.ErrNotFound
+			if errors.As(err, &notFound) {
+				http.Error(w, "Not Found", http.StatusNotFound)
+			} else {
+				// その他のエラーの場合は500 Internal Server Errorを返す
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			}
+			return
+		}
+
+		// 削除できた場合は、DeleteTODOResponseを作成し、JSON Encodeを行いHTTP Responseを返す
+		resp := model.DeleteTODOResponse{}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(resp)
 	default:
 		// PUTとPOST以外のメソッドに対してはMethod Not Allowedを返す

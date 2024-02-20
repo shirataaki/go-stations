@@ -42,8 +42,9 @@ type (
 		TODO TODO `json:"todo"` // 変更されたTODO
 	}
 
-	// A DeleteTODORequest expresses ...
-	DeleteTODORequest struct{}
+	DeleteTODORequest struct {
+		IDs []int64 `json:"ids" binding:"required"`
+	}
 	// A DeleteTODOResponse expresses ...
 	DeleteTODOResponse struct{}
 )

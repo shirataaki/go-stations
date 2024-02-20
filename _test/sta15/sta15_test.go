@@ -2,6 +2,7 @@ package sta15_test
 
 import (
 	"context"
+	"log"
 	"os"
 	"testing"
 
@@ -94,21 +95,21 @@ func TestStation15(t *testing.T) {
 			Size:   5,
 			TODOs:  todos[1:],
 		},
-		/*"All read with prev id = 1": {
+		"All read with prev id = 1": {
 			PrevID: 1,
 			Size:   5,
 			TODOs:  todos[3:],
-		},*/
+		},
 		"One read with prev id = 3": {
 			PrevID: 3,
 			Size:   1,
 			TODOs:  todos[1:2],
 		},
-		/*"One read with prev id = 1": {
+		"One read with prev id = 1": {
 			PrevID: 1,
 			Size:   1,
 			TODOs:  todos[3:],
-		},*/
+		},
 	}
 
 	for name, tc := range testcases {
@@ -121,6 +122,10 @@ func TestStation15(t *testing.T) {
 				return
 			}
 			if diff := cmp.Diff(ret, tc.TODOs, cmpopts.IgnoreFields(model.TODO{}, "CreatedAt", "UpdatedAt")); diff != "" {
+				if ret == nil {
+					log.Println("retがnilです。")
+				}
+				log.Println("tc.TODOs=", tc.TODOs)
 				t.Error("期待していない値です\n", diff)
 				return
 			}

@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
+	"strings"
 
 	"github.com/TechBowl-japan/go-stations/model"
 )
@@ -65,30 +67,40 @@ func (s *TODOService) ReadTODO(ctx context.Context, prevID, size int64) ([]*mode
 	var err error
 
 	if prevID > 0 {
+		log.Printf("Executing クエリ with prevID: %v, size: %v\n", prevID, size)
 		rows, err = s.db.QueryContext(ctx, readWithID, prevID, size)
 	} else {
+		log.Printf("Executing query with size: %v\n", size)
 		rows, err = s.db.QueryContext(ctx, read, size)
 	}
 
 	if err != nil {
-		return nil, err // エラー処理
+		log.Printf("Query execution error: %v\n", err)
+		return nil, err
 	}
-	defer rows.Close() // 必ずクローズ
+	defer rows.Close()
 
 	var todos []*model.TODO
 
 	for rows.Next() {
 		var todo model.TODO
 		if err := rows.Scan(&todo.ID, &todo.Subject, &todo.Description, &todo.CreatedAt, &todo.UpdatedAt); err != nil {
-			return nil, err // エラー処理
+			log.Printf("エラー scanning row: %v\n", err)
+			return nil, err
 		}
+		log.Printf("スキャン TODO: ID=%d, Subject=%s\n", todo.ID, todo.Subject)
 		todos = append(todos, &todo)
 	}
 
 	if err = rows.Err(); err != nil {
-		return nil, err // 繰り返し処理中のエラー処理
+		log.Printf("Error iterating rows: %v\n", err)
+		return nil, err
 	}
 
+	if todos == nil { // nilの返却を避けるために空のスライスにする。
+		log.Printf("todosはnilです。")
+		todos = []*model.TODO{}
+	}
 	return todos, nil
 }
 
@@ -133,7 +145,35 @@ func (s *TODOService) UpdateTODO(ctx context.Context, id int64, subject, descrip
 
 // DeleteTODO deletes TODOs on DB by ids.
 func (s *TODOService) DeleteTODO(ctx context.Context, ids []int64) error {
-	const deleteFmt = `DELETE FROM todos WHERE id IN (?%s)`
+	// idsが空のスライスの場合は何もせずに終了
+	if len(ids) == 0 {
+		return nil
+	}
+
+	// 削除クエリのWHERE句で使用するプレースホルダーを生成
+	placeholder := strings.Repeat("?,", len(ids)-1) + "?"
+	query := fmt.Sprintf(`DELETE FROM todos WHERE id IN (%s)`, placeholder)
+
+	// int64のスライスをinterface{}のスライスに変換
+	args := make([]interface{}, len(ids))
+	for i, id := range ids {
+		args[i] = id
+	}
+
+	// 削除クエリの実行
+	res, err := s.db.ExecContext(ctx, query, args...)
+	if err != nil {
+		return fmt.Errorf("failed to delete todos: %w", err)
+	}
+
+	// 削除された行がない場合はErrNotFoundを返す
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to check affected rows: %w", err)
+	}
+	if affected == 0 {
+		return &model.ErrNotFound{}
+	}
 
 	return nil
 }
